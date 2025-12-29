@@ -39,12 +39,16 @@ public class ServiceBusFunction {
     private static final String DESTINATION_CONTAINER = "filtered-csv";
     private static final String AZURE_CLIENT_ID_ENV = "AZURE_CLIENT_ID";
     
-    private BlobServiceClient sourceBlobServiceClient;
-    private BlobServiceClient destinationBlobServiceClient;
-    private EventHubProducerClient eventHubProducerClient;
-    private final TokenCredential credential;
+    // Static clients following Azure SDK best practices for connection reuse
+    // See: https://learn.microsoft.com/en-us/azure/azure-functions/manage-connections
+    private static final TokenCredential credential;
+    private static final BlobServiceClient sourceBlobServiceClient;
+    private static final BlobServiceClient destinationBlobServiceClient;
+    private static final EventHubProducerClient eventHubProducerClient;
     
-    public ServiceBusFunction() {
+    // Static initializer block - executed once when the class is loaded
+    // This ensures thread-safe singleton initialization of all Azure SDK clients
+    static {
         // Get the managed identity client ID from environment variable
         String managedIdentityClientId = System.getenv(AZURE_CLIENT_ID_ENV);
         
@@ -56,24 +60,28 @@ public class ServiceBusFunction {
         if (managedIdentityClientId != null && !managedIdentityClientId.isEmpty()) {
             credentialBuilder.managedIdentityClientId(managedIdentityClientId);
         }
-        this.credential = credentialBuilder.build();
+        credential = credentialBuilder.build();
         
         // Initialize blob service clients
         String sourceEndpoint = System.getenv(SOURCE_ENDPOINT_ENV);
         String destEndpoint = System.getenv(DEST_ENDPOINT_ENV);
         
         if (sourceEndpoint != null && !sourceEndpoint.isEmpty()) {
-            this.sourceBlobServiceClient = new BlobServiceClientBuilder()
+            sourceBlobServiceClient = new BlobServiceClientBuilder()
                     .endpoint(sourceEndpoint)
                     .credential(credential)
                     .buildClient();
+        } else {
+            sourceBlobServiceClient = null;
         }
         
         if (destEndpoint != null && !destEndpoint.isEmpty()) {
-            this.destinationBlobServiceClient = new BlobServiceClientBuilder()
+            destinationBlobServiceClient = new BlobServiceClientBuilder()
                     .endpoint(destEndpoint)
                     .credential(credential)
                     .buildClient();
+        } else {
+            destinationBlobServiceClient = null;
         }
         
         // Initialize Event Hub producer client
@@ -82,12 +90,18 @@ public class ServiceBusFunction {
         
         if (eventHubNamespace != null && !eventHubNamespace.isEmpty() && 
             eventHubName != null && !eventHubName.isEmpty()) {
-            this.eventHubProducerClient = new EventHubClientBuilder()
+            eventHubProducerClient = new EventHubClientBuilder()
                     .fullyQualifiedNamespace(eventHubNamespace)
                     .eventHubName(eventHubName)
                     .credential(credential)
                     .buildProducerClient();
+        } else {
+            eventHubProducerClient = null;
         }
+    }
+    
+    public ServiceBusFunction() {
+        // No-op constructor - all clients are initialized in the static block
     }
 
     /**
