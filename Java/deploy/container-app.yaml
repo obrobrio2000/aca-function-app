@@ -1,0 +1,61 @@
+location: westeurope
+name: <CONTAINER_APP_NAME>
+resourceGroup: <RESOURCE_GROUP>
+type: Microsoft.App/containerApps
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    /subscriptions/<SUBSCRIPTION_ID>/resourcegroups/<RESOURCE_GROUP>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<USER_ASSIGNED_IDENTITY_NAME>: {}
+properties:
+  managedEnvironmentId: /subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP>/providers/Microsoft.App/managedEnvironments/<CONTAINER_APP_ENVIRONMENT_NAME>
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: false
+      transport: auto
+      allowInsecure: false
+    registries:
+      - server: <AZURE_CONTAINER_REGISTRY_NAME>.azurecr.io
+        identity: /subscriptions/<SUBSCRIPTION_ID>/resourcegroups/<RESOURCE_GROUP>/providers/Microsoft.ManagedIdentity/userAssignedIdentities/<USER_ASSIGNED_IDENTITY_NAME>
+    secrets: []
+  template:
+    containers:
+      - name: funcappservicebustriggejava
+        image: <AZURE_CONTAINER_REGISTRY_NAME>.azurecr.io/<IMAGE_NAME>:<IMAGE_TAG>
+        resources:
+          cpu: 1
+          memory: 2Gi
+        env:
+          - name: FUNCTIONS_WORKER_RUNTIME
+            value: java
+          - name: AzureWebJobsStorage__accountName
+            value: <STORAGE_ACCOUNT_NAME>
+          - name: AzureWebJobsStorage__credential
+            value: managedidentity
+          - name: AzureWebJobsStorage__clientId
+            value: <USER_ASSIGNED_IDENTITY_CLIENT_ID>
+          - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+            value: <YOUR_APP_INSIGHTS_CONNECTION_STRING>
+          - name: ConnToServiceBusFile__fullyQualifiedNamespace
+            value: <SERVICEBUS_NAME>.servicebus.windows.net
+          - name: ConnToServiceBusFile__credential
+            value: managedidentity
+          - name: ConnToServiceBusFile__tenantId
+            value: <TENANT_ID>
+          - name: ConnToServiceBusFile__clientId
+            value: <USER_ASSIGNED_IDENTITY_CLIENT_ID>
+          - name: FileStorageAccountEndpoint
+            value: https://<FILE_STORAGE_ACCOUNT_NAME>.blob.core.windows.net/
+          - name: DestinationStorageAccountEndpoint
+            value: https://<DESTINATION_STORAGE_ACCOUNT_NAME>.blob.core.windows.net/
+          - name: AZURE_TENANT_ID
+            value: <TENANT_ID>
+          - name: AZURE_CLIENT_ID
+            value: <USER_ASSIGNED_IDENTITY_CLIENT_ID>
+          - name: EventHubNamespace
+            value: <EVENTHUB_NAMESPACE>.servicebus.windows.net
+          - name: EventHubName
+            value: <EVENTHUB_NAME>
+    scale:
+      minReplicas: 1
+      maxReplicas: 10

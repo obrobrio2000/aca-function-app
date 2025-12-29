@@ -1,0 +1,14 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "java",
+    "ConnToServiceBusFile__fullyQualifiedNamespace": "<your-service-bus-namespace>.servicebus.windows.net",
+    "ConnToServiceBusFile__tenantId": "<your-tenant-id>",
+    "AZURE_TENANT_ID": "<your-tenant-id>",
+    "FileStorageAccountEndpoint": "https://<your-sa-name>.blob.core.windows.net/",
+    "DestinationStorageAccountEndpoint": "https://<your-destination-sa-name>.blob.core.windows.net/",
+    "EventHubNamespace": "<your-eventhub-namespace>.servicebus.windows.net",
+    "EventHubName": "<your-eventhub-name>"
+  }
+}
