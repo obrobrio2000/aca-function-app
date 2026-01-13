@@ -6,6 +6,7 @@ using Azure.Messaging.ServiceBus;
 using Azure.Storage.Blobs;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Azure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text;
 
@@ -15,16 +16,19 @@ namespace FunctionAppFileProcessor
     public class ServiceBusFunction
     {
         private readonly ILogger<ServiceBusFunction> _logger;
+        private readonly IConfiguration _configuration;
         private readonly BlobServiceClient _sourceBlobServiceClient;
         private readonly BlobServiceClient _destinationBlobServiceClient;
         private readonly EventHubProducerClient _eventHubProducerClient;
 
         public ServiceBusFunction(
-            ILogger<ServiceBusFunction> logger, 
+            ILogger<ServiceBusFunction> logger,
+            IConfiguration configuration,
             IAzureClientFactory<BlobServiceClient> blobClientFactory,
             IAzureClientFactory<EventHubProducerClient> eventHubClientFactory)
         {
             _logger = logger;
+            _configuration = configuration;
             _sourceBlobServiceClient = blobClientFactory.CreateClient("SourceBlobServiceClient");
             _destinationBlobServiceClient = blobClientFactory.CreateClient("DestinationBlobServiceClient");
             _eventHubProducerClient = eventHubClientFactory.CreateClient("EventHubProducerClient");
@@ -32,7 +36,7 @@ namespace FunctionAppFileProcessor
 
         [Function(nameof(ServiceBusFunction))]
         public async Task Run(
-            [ServiceBusTrigger("queue-blob-created", Connection = "ConnToServiceBusFile")]
+            [ServiceBusTrigger("%ConnToServiceBusFile__queueName%", Connection = "ConnToServiceBusFile")]
             ServiceBusReceivedMessage message,
             ServiceBusMessageActions messageActions)
         {
@@ -64,12 +68,18 @@ namespace FunctionAppFileProcessor
                     _logger.LogInformation("Content Type: {contentType}", blobCreatedData.ContentType);
                     _logger.LogInformation("Content Length: {contentLength}", blobCreatedData.ContentLength);
 
-                    // Filtra solo gli eventi SftpCommit per evitare elaborazioni duplicate, SftpCreate viene generato all'inizio del caricamento (file potenzialmente incompleto), SftpCommit viene generato quando il file è completamente caricato
-                    if (blobCreatedData.Api != "SftpCommit")
+                    // Filtra gli eventi in base ai tipi di API configurati
+                    var processOnlyCommitted = bool.Parse(_configuration["ProcessOnlyCommittedFiles"] ?? "true");
+                    if (processOnlyCommitted)
                     {
-                        _logger.LogInformation("Ignoring event with API: {api} - only processing SftpCommit", blobCreatedData.Api);
-                        await messageActions.CompleteMessageAsync(message);
-                        return;
+                        var acceptedApiTypes = _configuration["AcceptedBlobApiTypes"]?.Split(',') ?? new[] { "SftpCommit" };
+                        if (!acceptedApiTypes.Contains(blobCreatedData.Api))
+                        {
+                            _logger.LogInformation("Ignoring event with API: {api} - only processing: {acceptedTypes}", 
+                                blobCreatedData.Api, string.Join(", ", acceptedApiTypes));
+                            await messageActions.CompleteMessageAsync(message);
+                            return;
+                        }
                     }
 
                     // Estrae il nome del container e del blob dall'URL
@@ -133,8 +143,9 @@ namespace FunctionAppFileProcessor
                 // ====================================================================
                 // ESEMPIO 2: Creazione nuovo file di output su storage account diverso
                 // ====================================================================
-                var destinationContainerName = "filtered-csv";
-                var destinationBlobName = $"{DateTime.UtcNow:yyyyMMddHHmmss}_new_{blobName}";
+                var destinationContainerName = _configuration["DestinationContainerName"] ?? "filtered-csv";
+                var destinationBlobPrefix = _configuration["DestinationBlobPrefix"] ?? "new_";
+                var destinationBlobName = $"{DateTime.UtcNow:yyyyMMddHHmmss}_{destinationBlobPrefix}{blobName}";
                 var destinationBlobContainerClient = _destinationBlobServiceClient.GetBlobContainerClient(destinationContainerName);
                 await destinationBlobContainerClient.CreateIfNotExistsAsync();
                 

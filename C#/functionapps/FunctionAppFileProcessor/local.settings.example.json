@@ -4,10 +4,15 @@
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "ConnToServiceBusFile__fullyQualifiedNamespace": "<your-service-bus-namespace>.servicebus.windows.net",
     "ConnToServiceBusFile__tenantId": "<your-tenant-id>",
+    "ConnToServiceBusFile__queueName": "<your-queue-name>",
     "AZURE_TENANT_ID": "<your-tenant-id>",
     "FileStorageAccountEndpoint": "https://<your-sa-name>.blob.core.windows.net/",
     "DestinationStorageAccountEndpoint": "https://<your-destination-sa-name>.blob.core.windows.net/",
+    "DestinationContainerName": "filtered-csv",
+    "DestinationBlobPrefix": "new_",
     "EventHubNamespace": "<your-eventhub-namespace>.servicebus.windows.net",
-    "EventHubName": "<your-eventhub-name>"
+    "EventHubName": "<your-eventhub-name>",
+    "ProcessOnlyCommittedFiles": "true",
+    "AcceptedBlobApiTypes": "SftpCommit,PutBlob,PutBlockList"
   }
 }

@@ -1,13 +1,21 @@
 package com.FunctionAppFileProcessor;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.net.URI;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 import com.azure.core.credential.TokenCredential;
 import com.azure.identity.DefaultAzureCredentialBuilder;
 import com.azure.messaging.eventgrid.EventGridEvent;
 import com.azure.messaging.eventgrid.systemevents.StorageBlobCreatedEventData;
 import com.azure.messaging.eventhubs.EventData;
 import com.azure.messaging.eventhubs.EventDataBatch;
-import com.azure.messaging.eventhubs.EventHubProducerClient;
 import com.azure.messaging.eventhubs.EventHubClientBuilder;
+import com.azure.messaging.eventhubs.EventHubProducerClient;
 import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
@@ -16,14 +24,6 @@ import com.azure.storage.blob.models.BlobProperties;
 import com.microsoft.azure.functions.ExecutionContext;
 import com.microsoft.azure.functions.annotation.FunctionName;
 import com.microsoft.azure.functions.annotation.ServiceBusQueueTrigger;
-
-import java.io.*;
-import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 /**
  * Azure Function triggered by Service Bus to process blobs.
@@ -36,7 +36,10 @@ public class ServiceBusFunction {
     private static final String DEST_ENDPOINT_ENV = "DestinationStorageAccountEndpoint";
     private static final String EVENT_HUB_NAMESPACE_ENV = "EventHubNamespace";
     private static final String EVENT_HUB_NAME_ENV = "EventHubName";
-    private static final String DESTINATION_CONTAINER = "filtered-csv";
+    private static final String DESTINATION_CONTAINER_ENV = "DestinationContainerName";
+    private static final String DESTINATION_BLOB_PREFIX_ENV = "DestinationBlobPrefix";
+    private static final String PROCESS_ONLY_COMMITTED_ENV = "ProcessOnlyCommittedFiles";
+    private static final String ACCEPTED_API_TYPES_ENV = "AcceptedBlobApiTypes";
     private static final String AZURE_CLIENT_ID_ENV = "AZURE_CLIENT_ID";
     
     // Static clients following Azure SDK best practices for connection reuse
@@ -111,22 +114,22 @@ public class ServiceBusFunction {
     public void run(
             @ServiceBusQueueTrigger(
                 name = "message",
-                queueName = "queue-blob-created",
+                queueName = "%ConnToServiceBusFile__queueName%",
                 connection = "ConnToServiceBusFile"
             ) String message,
             final ExecutionContext context
     ) {
         Logger logger = context.getLogger();
-        logger.info("Message ID: " + context.getInvocationId());
-        logger.info("Message Body: " + message);
+        logger.info(String.format("Message ID: %s", context.getInvocationId()));
+        logger.info(String.format("Message Body: %s", message));
         
         try {
             
             // Parse Event Grid event from Service Bus message
             EventGridEvent eventGridEvent = EventGridEvent.fromString(message).get(0);
             
-            logger.info("Event Type: " + eventGridEvent.getEventType());
-            logger.info("Subject: " + eventGridEvent.getSubject());
+            logger.info(String.format("Event Type: %s", eventGridEvent.getEventType()));
+            logger.info(String.format("Subject: %s", eventGridEvent.getSubject()));
             
             // Check if it's a blob created event
             if ("Microsoft.Storage.BlobCreated".equals(eventGridEvent.getEventType())) {
@@ -139,17 +142,33 @@ public class ServiceBusFunction {
                     return;
                 }
                 
-                logger.info("Blob URL: " + blobCreatedData.getUrl());
-                logger.info("Blob API: " + blobCreatedData.getApi());
-                logger.info("Content Type: " + blobCreatedData.getContentType());
-                logger.info("Content Length: " + blobCreatedData.getContentLength());
+                logger.info(String.format("Blob URL: %s", blobCreatedData.getUrl()));
+                logger.info(String.format("Blob API: %s", blobCreatedData.getApi()));
+                logger.info(String.format("Content Type: %s", blobCreatedData.getContentType()));
+                logger.info(String.format("Content Length: %s", blobCreatedData.getContentLength()));
                 
-                // Filtra solo gli eventi SftpCommit per evitare elaborazioni duplicate
-                // SftpCreate viene generato all'inizio del caricamento (file potenzialmente incompleto)
-                // SftpCommit viene generato quando il file è completamente caricato
-                if (!"SftpCommit".equals(blobCreatedData.getApi())) {
-                    logger.info("Ignoring event with API: " + blobCreatedData.getApi() + " - only processing SftpCommit");
-                    return;
+                // Filtra gli eventi in base ai tipi di API configurati
+                String processOnlyCommitted = System.getenv(PROCESS_ONLY_COMMITTED_ENV);
+                boolean shouldFilterApi = processOnlyCommitted == null || Boolean.parseBoolean(processOnlyCommitted);
+                
+                if (shouldFilterApi) {
+                    String acceptedApiTypesStr = System.getenv(ACCEPTED_API_TYPES_ENV);
+                    String[] acceptedApiTypes = acceptedApiTypesStr != null ? 
+                        acceptedApiTypesStr.split(",") : new String[]{"SftpCommit"};
+                    
+                    boolean isAccepted = false;
+                    for (String apiType : acceptedApiTypes) {
+                        if (apiType.trim().equals(blobCreatedData.getApi())) {
+                            isAccepted = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!isAccepted) {
+                        logger.info(String.format("Ignoring event with API: %s - only processing: %s", 
+                            blobCreatedData.getApi(), String.join(", ", acceptedApiTypes)));
+                        return;
+                    }
                 }
                 
                 // Extract container and blob name from URL
@@ -167,10 +186,10 @@ public class ServiceBusFunction {
                     processBlobAsync(containerName, blobName, logger);
                     
                 } else {
-                    logger.warning("Unable to parse blob path from URL: " + blobCreatedData.getUrl());
+                    logger.warning(String.format("Unable to parse blob path from URL: %s", blobCreatedData.getUrl()));
                 }
             } else {
-                logger.warning("Received non-BlobCreated event: " + eventGridEvent.getEventType());
+                logger.warning(String.format("Received non-BlobCreated event: %s", eventGridEvent.getEventType()));
             }
             
             logger.info("Successfully processed blob and completed message");
@@ -199,33 +218,53 @@ public class ServiceBusFunction {
             
             // Get blob properties
             BlobProperties properties = sourceBlobClient.getProperties();
-            logger.info("Processing Blob. Size: " + properties.getBlobSize() + " bytes");
+            logger.info(String.format("Processing Blob. Size: %s bytes", properties.getBlobSize()));
 
             // ====================================================================
             // ESEMPIO 1: Lettura file come stream (senza scaricarlo localmente)
             // ====================================================================
-            try (InputStream sourceStream = sourceBlobClient.openInputStream();
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(sourceStream, StandardCharsets.UTF_8))) {
+            @SuppressWarnings("unused")
+            InputStream sourceStream = sourceBlobClient.openInputStream();
+            try {
                 // TODO: Aggiungere/modificare la logica di lettura del file
+                // BufferedReader reader = new BufferedReader(new InputStreamReader(sourceStream, StandardCharsets.UTF_8));
+            } finally {
+                if (sourceStream != null) {
+                    sourceStream.close();
+                }
             }
 
             // ====================================================================
             // ESEMPIO 2: Creazione nuovo file di output su storage account diverso
             // ====================================================================
+            String destinationContainerName = System.getenv(DESTINATION_CONTAINER_ENV);
+            if (destinationContainerName == null || destinationContainerName.isEmpty()) {
+                destinationContainerName = "filtered-csv";
+            }
+            
+            String destinationBlobPrefix = System.getenv(DESTINATION_BLOB_PREFIX_ENV);
+            if (destinationBlobPrefix == null || destinationBlobPrefix.isEmpty()) {
+                destinationBlobPrefix = "new_";
+            }
+            
             String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
-            String destinationBlobName = String.format("%s_new_%s", timestamp, blobName);
+            String destinationBlobName = String.format("%s_%s%s", timestamp, destinationBlobPrefix, blobName);
             BlobContainerClient destContainerClient = 
-                destinationBlobServiceClient.getBlobContainerClient(DESTINATION_CONTAINER);
+                destinationBlobServiceClient.getBlobContainerClient(destinationContainerName);
             
             // Create destination container if it doesn't exist
             destContainerClient.createIfNotExists();
             
-            logger.info(String.format("Destination blob: %s/%s", DESTINATION_CONTAINER, destinationBlobName));
+            logger.info(String.format("Destination blob: %s/%s", destinationContainerName, destinationBlobName));
             
-            BlobClient destBlobClient = destContainerClient.getBlobClient(destinationBlobName);
-            try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-                 OutputStreamWriter writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8)) {
+            // BlobClient destBlobClient = destContainerClient.getBlobClient(destinationBlobName);
+            @SuppressWarnings("unused")
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            try {
                 // TODO: Aggiungere/modificare la logica di scrittura del file
+                // OutputStreamWriter writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8);
+            } finally {
+                outputStream.close();
             }
 
             // ====================================================================
@@ -244,17 +283,21 @@ public class ServiceBusFunction {
                     logger.severe("Event is too large for the batch");
                 } else {
                     eventHubProducerClient.send(eventDataBatch);
-                    logger.info("Event sent to Event Hub: " + jsonEvent);
+                    logger.info(String.format("Event sent to Event Hub: %s", jsonEvent));
                 }
                 // TODO: Aggiungere/modificare la logica di invio evento
             } else {
                 logger.warning("Event Hub producer client not initialized - skipping Event Hub send");
             }
 
-        } catch (Exception ex) {
+        } catch (java.io.IOException ex) {
             logger.log(Level.SEVERE, 
-                String.format("Error processing File Blob: %s/%s", containerName, blobName), ex);
+                String.format("IO error processing File Blob: %s/%s", containerName, blobName), ex);
             throw new RuntimeException("Error processing blob", ex);
+        } catch (RuntimeException ex) {
+            logger.log(Level.SEVERE, 
+                String.format("Runtime error processing File Blob: %s/%s", containerName, blobName), ex);
+            throw ex;
         }
     }
 }
