@@ -1,9 +1,33 @@
 {
-    "azureFunctions.javaBuildTool": "maven",
-    "azureFunctions.deploySubpath": "target/azure-functions/java-func-1766136297119",
-    "azureFunctions.projectLanguage": "Java",
-    "azureFunctions.projectRuntime": "~4",
-    "debug.internalConsoleOptions": "neverOpen",
-    "azureFunctions.preDeployTask": "package (functions)",
-    "java.configuration.updateBuildConfiguration": "interactive"
+  "azureFunctions.javaBuildTool": "maven",
+  "azureFunctions.deploySubpath": "target/azure-functions/java-func-1766136297119",
+  "azureFunctions.projectLanguage": "Java",
+  "azureFunctions.projectRuntime": "~4",
+  "debug.internalConsoleOptions": "neverOpen",
+  "azureFunctions.preDeployTask": "package (functions)",
+  "java.configuration.updateBuildConfiguration": "interactive",
+  "java.compile.nullAnalysis.mode": "automatic",
+  "java.saveActions.organizeImports": true,
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/target": true,
+    "**/.classpath": true,
+    "**/.project": true,
+    "**/.settings": true,
+    "**/.factorypath": true
+  },
+  "files.watcherExclude": {
+    "**/target/**": true,
+    "**/bin/**": true,
+    "**/obj/**": true
+  },
+  "[java]": {
+    "editor.defaultFormatter": "redhat.java",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+      "source.fixAll": "explicit"
+    }
+  }
 }

@@ -1,0 +1,31 @@
+# Azure Functions Local Development
+
+# Azure Function Core Tools
+local.settings.json
+*.user
+
+# Build output
+bin/
+obj/
+target/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln.docstates
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Azure
+__blobstorage__
+__queuestorage__
+__azurite_db*__.json
+
+# Test
+TestResults/

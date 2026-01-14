@@ -1,0 +1,30 @@
+{
+  "azureFunctions.deploySubpath": "bin/output",
+  "azureFunctions.projectLanguage": "C#",
+  "azureFunctions.projectRuntime": "~4",
+  "azureFunctions.preDeployTask": "publish",
+  "debug.internalConsoleOptions": "neverOpen",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/bin": true,
+    "**/obj": true,
+    "**/*.user": true
+  },
+  "files.watcherExclude": {
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/target/**": true
+  },
+  "[csharp]": {
+    "editor.defaultFormatter": "ms-dotnettools.csharp",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+      "source.fixAll": "explicit"
+    }
+  },
+  "dotnet.defaultSolution": "FunctionAppFileProcessor.sln",
+  "csharp.format.enable": true,
+  "csharp.suppressDotnetInstallWarning": false
+}

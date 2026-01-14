@@ -60,7 +60,7 @@
       "type": "func",
       "label": "func: host start",
       "command": "host start",
-      "problemMatcher": "$func-dotnet",
+      "problemMatcher": "$func-dotnet-watch",
       "isBackground": true,
       "dependsOn": "build"
     }

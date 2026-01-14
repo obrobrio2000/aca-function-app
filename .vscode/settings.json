@@ -1,0 +1,28 @@
+{
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true,
+    "**/node_modules": true,
+    "**/__pycache__": true,
+    "**/.pytest_cache": true
+  },
+  "files.watcherExclude": {
+    "**/bin/**": true,
+    "**/obj/**": true,
+    "**/target/**": true,
+    "**/node_modules/**": true
+  },
+  "search.exclude": {
+    "**/bin": true,
+    "**/obj": true,
+    "**/target": true,
+    "**/node_modules": true,
+    "**/*.code-search": true
+  },
+  "editor.formatOnSave": false,
+  "editor.formatOnSaveMode": "modificationsIfAvailable",
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit"
+  },
+  "terminal.integrated.defaultProfile.linux": "bash"
+}
